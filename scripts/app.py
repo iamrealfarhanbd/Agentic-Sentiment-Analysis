@@ -143,7 +143,10 @@ with tab1:
         if run_btn and user_review:
             with st.spinner("Processing..."):
                 sentiment = get_sentiment(user_review)
-                st.metric("Detected Sentiment", sentiment)
+                #add color to the metric based on sentiment
+                s_color = {"Positive": "green", "Neutral": "orange", "Negative":
+                            "red"}[sentiment]
+                st.markdown(f"#### AI Perception Result: :{s_color}[{sentiment}]")
 
                 # Logic: Get reasoning and draft separately
                 analysis, draft = get_agentic_output(user_review, sentiment)

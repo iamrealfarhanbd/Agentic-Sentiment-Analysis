@@ -3,13 +3,13 @@ import os
 from transformers import DistilBertTokenizerFast, DistilBertForSequenceClassification
 from langchain_ollama import OllamaLLM
 from langchain_core.prompts import PromptTemplate
+import pandas as pd
 
 # 1. Setup Professional Paths
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MODEL_PATH = os.path.join(BASE_DIR, "models", "sentiment_model")
 
 # 2. Load the Perception Model (DistilBERT)
-# This uses your fine-tuned model from Phase 2
 device = "mps" if torch.backends.mps.is_available() else "cpu"
 print(f"Loading Perception Model on: {device}")
 
@@ -18,7 +18,8 @@ model = DistilBertForSequenceClassification.from_pretrained(MODEL_PATH).to(devic
 
 
 def get_sentiment(text):
-    inputs = tokenizer(text, return_tensors="pt", truncation=True, padding=True, max_length=128).to(device)
+    # UPDATED: Set max_length to 256 to strictly match your training methodology
+    inputs = tokenizer(text, return_tensors="pt", truncation=True, padding=True, max_length=256).to(device)
     with torch.no_grad():
         outputs = model(**inputs)
     prediction = torch.argmax(outputs.logits, dim=1).item()
@@ -27,24 +28,31 @@ def get_sentiment(text):
 
 
 # 3. Initialize the Reasoning Layer (Llama 3 via Ollama)
-llm = OllamaLLM(model="llama3")
+# UPDATED: Set temperature to 0.1 to prevent hallucinations and enforce professional tone
+llm = OllamaLLM(model="llama3", temperature=0.1)
 
-# Professional Agentic Template (Chain-of-Thought)
+# Professional Agentic Template (Enterprise-Grade)
 template = """
-You are an AI Brand Manager Agent. 
-Our sentiment model has flagged a review as: {sentiment}
+You are an elite Customer Experience (CX) Escalation Manager and Brand Protection Officer.
+Our deterministic perception model has flagged the following customer review as: {sentiment}.
 
 CUSTOMER REVIEW: "{review_text}"
 
-INSTRUCTIONS:
-1. Identify the ROOT CAUSE of the sentiment (e.g., Delivery, Product Quality, Customer Service).
-2. Provide a brief REASONING for your choice.
-3. Draft an APPROPRIATE RESPONSE to the customer.
+YOUR DIRECTIVES (RULES OF ENGAGEMENT):
+1. **Brand Protection & Compliance:** NEVER admit legal liability, gross negligence, or make explicit financial promises (e.g., do not say "we will give you a full refund"). Instead, use policy-safe escalation language (e.g., "we would like to investigate this to make things right" or "please contact support to process an exchange").
+2. **Technical Root Cause Diagnosis:** Do not just say "bad product." Pinpoint the exact operational failure (e.g., Last-Mile Delivery Delay, Manufacturing Defect, UI/UX Confusion, Packaging Damage, or Customer Service Friction).
+3. **De-Escalation & Tone:** - If Negative: Be empathetic, de-escalating, and action-oriented.
+   - If Neutral: Be inquisitive, seeking specific feedback to turn them into a promoter.
+   - If Positive: Build brand loyalty and encourage future engagement.
+4. **Multilingual Constraint:** The customer-facing DRAFT must be written in the EXACT SAME LANGUAGE as the original customer review.
 
-FORMAT:
-ROOT CAUSE: [Category]
-REASONING: [1 sentence explaining why]
-DRAFT RESPONSE: [Professional reply]
+OUTPUT FORMAT REQUIREMENTS:
+Provide your response exactly in the following structure:
+
+SUMMARY: [1-sentence executive summary of the issue or praise]
+WHY: [Precise operational root cause diagnosis based on the text]
+SOLUTION: [Internal strategic action steps for the company to fix the root cause]
+DRAFT: [A highly professional, compliance-safe, customer-facing response starting with 'Dear Customer', written in the review's original language]
 """
 
 prompt = PromptTemplate.from_template(template)
@@ -65,6 +73,17 @@ def run_agentic_pipeline(review):
 
 
 if __name__ == "__main__":
-    # Test with a difficult logistics review
-    test_review = "I love the sneakers, but they arrived with a huge scratch on the side and the delivery driver just left them in the rain."
-    run_agentic_pipeline(test_review)
+    print("\n=== LOADING DYNAMIC TEST DATA ===")
+    try:
+        # Pull 2 random reviews directly from your cleaned dataset
+        df = pd.read_csv(os.path.join(BASE_DIR, "data", "processed", "master_cleaned_data.csv"))
+        sample_reviews = df.sample(2, random_state=None)['clean_text'].tolist()
+
+        print("\n=== TEST 1: RANDOM REVIEW ===")
+        run_agentic_pipeline(sample_reviews[0])
+
+        print("\n=== TEST 2: RANDOM REVIEW ===")
+        run_agentic_pipeline(sample_reviews[1])
+
+    except Exception as e:
+        print(f"Error loading data: {e}")

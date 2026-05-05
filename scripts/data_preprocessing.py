@@ -9,26 +9,16 @@ RAW_DIR = "../data/raw"
 PROCESSED_DIR = "../data/processed"
 OUTPUTS_DIR = "../outputs"
 
-# Create directories if they don't exist
 os.makedirs(PROCESSED_DIR, exist_ok=True)
 os.makedirs(OUTPUTS_DIR, exist_ok=True)
 
 
 def clean_text_advanced(text):
-    """
-    Advanced text cleaning: Removes HTML, URLs, non-alphanumeric noise, and normalizes spacing.
-    """
-    if not isinstance(text, str):
-        return ""
-    # 1. Remove HTML tags using regex
+    if not isinstance(text, str): return ""
     text = re.sub(r'<[^>]*>', '', text)
-    # 2. Remove URLs
     text = re.sub(r'http\S+|www\S+|https\S+', '', text, flags=re.MULTILINE)
-    # 3. Remove non-alphanumeric noise but keep basic punctuation and accents
     text = re.sub(r'[^a-zA-Z\u00C0-\u017F0-9\s.,!?\']', '', text)
-    # 4. Normalize whitespace and convert to lowercase
-    text = re.sub(r'\s+', ' ', text).strip().lower()
-    return text
+    return re.sub(r'\s+', ' ', text).strip().lower()
 
 
 def process_single_file(file_name):
@@ -37,50 +27,61 @@ def process_single_file(file_name):
         print(f"Error: {file_name} not found in {RAW_DIR}")
         return
 
-    # Load Data
     df = pd.read_csv(raw_path)
     original_count = len(df)
 
-    # 1. Text Cleaning
     print(f"Cleaning {original_count} reviews...")
     df['clean_text'] = df['review_body'].apply(clean_text_advanced)
 
-    # 2. Filter for target languages (English and German)
+    # Calculate word count for tokenization justification
+    df['word_count'] = df['clean_text'].apply(lambda x: len(str(x).split()))
+
     df_filtered = df[df['language'].isin(['en', 'de'])].copy()
     processed_count = len(df_filtered)
 
-    # 3. Save Master Cleaned File
     output_path = os.path.join(PROCESSED_DIR, "master_cleaned_data.csv")
     df_filtered.to_csv(output_path, index=False)
 
-    # --- Visualization Part (Now with 'hue' fixed) ---
+    # --- GENERATE METHODOLOGY IMAGES (1 to 3) ---
     sns.set_theme(style="whitegrid")
+    plt.rcParams.update({'font.size': 12, 'font.weight': 'bold'})
 
-    # Visualization 1: Language Distribution
-    plt.figure(figsize=(10, 6))
+    # IMAGE 1: Language Distribution
+    plt.figure(figsize=(8, 6))
     lang_counts = df_filtered['language'].value_counts().reset_index()
     lang_counts.columns = ['Language', 'Count']
-    sns.barplot(data=lang_counts, x='Language', y='Count', hue='Language', palette='viridis', legend=False)
-    plt.title('Language Distribution: English vs German', fontsize=14, fontweight='bold')
-    plt.savefig(os.path.join(OUTPUTS_DIR, 'language_distribution.png'))
+    ax = sns.barplot(data=lang_counts, x='Language', y='Count', hue='Language', palette='viridis', legend=False)
+    plt.title('Language Distribution (English vs German)', fontsize=14, pad=15)
+    for p in ax.patches:
+        ax.annotate(f'{int(p.get_height())}', (p.get_x() + p.get_width() / 2., p.get_height()),
+                    ha='center', va='center', xytext=(0, 8), textcoords='offset points')
+    plt.savefig(os.path.join(OUTPUTS_DIR, '1_language_distribution.png'), dpi=300, bbox_inches='tight')
     plt.close()
 
-    # Visualization 2: Data Retention Summary
+    # IMAGE 2: Data Retention Summary
     plt.figure(figsize=(8, 6))
-    retention_data = pd.DataFrame({
-        'Stage': ['Original (All Langs)', 'Cleaned (EN/DE Only)'],
-        'Count': [original_count, processed_count]
-    })
-    sns.barplot(data=retention_data, x='Stage', y='Count', hue='Stage', palette='Blues_d', legend=False)
-    plt.title('Data Cleaning Retention Summary', fontsize=14, fontweight='bold')
-    plt.savefig(os.path.join(OUTPUTS_DIR, 'data_retention.png'))
+    retention_data = pd.DataFrame(
+        {'Stage': ['Original (All)', 'Cleaned (EN/DE)'], 'Count': [original_count, processed_count]})
+    ax = sns.barplot(data=retention_data, x='Stage', y='Count', hue='Stage', palette='Blues_d', legend=False)
+    plt.title('Data Cleaning Retention', fontsize=14, pad=15)
+    for p in ax.patches:
+        ax.annotate(f'{int(p.get_height())}', (p.get_x() + p.get_width() / 2., p.get_height()),
+                    ha='center', va='center', xytext=(0, 8), textcoords='offset points')
+    plt.savefig(os.path.join(OUTPUTS_DIR, '2_data_retention.png'), dpi=300, bbox_inches='tight')
     plt.close()
 
-    print(f"\n--- SUCCESS ---")
-    print(f"Master cleaned data saved to: {output_path}")
-    print(f"Language and Retention plots saved to: {OUTPUTS_DIR}")
-    print(f"Total reviews preserved: {processed_count}")
+    # IMAGE 3: Review Length Distribution (Justifies max_length=256)
+    plt.figure(figsize=(9, 6))
+    sns.histplot(data=df_filtered, x='word_count', hue='language', bins=50, kde=True, palette='Set2')
+    plt.axvline(x=256, color='red', linestyle='--', label='Tokenization Cutoff (256)')
+    plt.title('Review Word Count Distribution', fontsize=14, pad=15)
+    plt.xlim(0, 500)
+    plt.legend()
+    plt.savefig(os.path.join(OUTPUTS_DIR, '3_review_length_distribution.png'), dpi=300, bbox_inches='tight')
+    plt.close()
+
+    print(f"--- SUCCESS: Images 1-3 saved to {OUTPUTS_DIR} ---")
 
 
 if __name__ == "__main__":
-    process_single_file("test.csv")
+    process_single_file("test.csv")  # Change to your actual raw file name if needed
